@@ -7,6 +7,7 @@ require('dotenv').config()
 const jwt = require('jsonwebtoken');
 
 const app = express()
+
 const admin = require("firebase-admin");
 
 const port = process.env.PORT || 5000;
@@ -58,7 +59,36 @@ admin.initializeApp({
 
   } */
 
-const jwtToken = async(req, res, next) =>{
+   //token veryfied for create product
+
+   const verifyFirebaseToken = async (req, res, next) =>
+   {
+    const authorization = req.headers.authorization;
+
+    if(!authorization)
+    {
+      return res.status(401).send({message : 'Unauthorized Access'})
+    }
+
+    const token = authorization.split(' ')[1]
+
+
+try{
+  const decode = await admin.auth().verifyIdToken(token)
+  console.log('inside token', decode)
+  req.token_email = decode.email;
+  next();
+}
+catch (error){
+   return res.status(401).send({message:"Unauthorised Access"})
+}
+
+   }
+
+
+
+
+/* const jwtToken = async(req, res, next) =>{
   console.log(req.headers)
   if(!req.headers.authorization)
   {
@@ -82,7 +112,7 @@ const jwtToken = async(req, res, next) =>{
      req.token_email = decode.email;
     next()
    })
-}
+} */
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -110,7 +140,10 @@ async function run() {
 
 
 // <-------------------------------Products---------------------------->
-   app.post("/products",async(req,res)=>{
+   app.post("/products",verifyFirebaseToken,async(req,res)=>{
+
+    console.log('post req for the creatProduct',req.headers)
+
     const product = req.body;
     const result = await productCollection.insertOne(product)
     res.send(result)
@@ -167,18 +200,21 @@ app.post("/bids",async (req, res) =>{
 
 //-------------see how many bids i have done so far---------------
 
-app.get("/bids",jwtToken, async(req,res)=>{
+app.get("/bids",verifyFirebaseToken, async(req,res)=>{
   const email = req.query.email; //request theke email ta nibo
 
   //Token
  
-
   const query = {} 
   // query = {buyer_email = "chudlingpong@gmail.com"}
 
   if(email)
   {
     query.buyer_email = email
+    if(email !== req.token_email)
+    {
+      return res.status(401).send({message : 'FORBIDDEN ACCESS'})
+    }
   }
 
   if(email !== req.token_email)
